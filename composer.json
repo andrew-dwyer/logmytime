@@ -1,0 +1,25 @@
+{
+    "name": "dwyera/logmytime",
+    "description": "Log My Time in Assembla",
+    "authors": [
+        {
+            "name": "Andrew Dwyer",
+            "email": "andrewrdwyer@gmail.com"
+        }
+    ],
+    "require": {
+        "symfony/finder": "~2.6",
+        "symfony/console": "~2.6",
+        "symfony/serializer": "~2.6",
+        "symfony/config": "~2.6",
+        "symfony/yaml": "~2.6",
+        "symfony/filesystem": "~2.6",
+        "guzzlehttp/guzzle": "~5.0",
+        "danielstjules/stringy": "~1.9"
+    },
+    "autoload": {
+        "psr-4": {"Dwyera\\": "src/"}
+    }
+
+	
+}
