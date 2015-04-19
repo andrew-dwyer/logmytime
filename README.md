@@ -12,4 +12,4 @@ Basic ticket add:
 `php logmytime.php -s SPACENAME -t TICKET_NUMBER -d DESCRIPTION -hr 1.5`
 
 Set API key and API secret:
-'php logmytime.php -key API_KEY -sec API_SECRET`
+`php logmytime.php --apiKey API_KEY --apiSecret API_SECRET`

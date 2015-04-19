@@ -132,7 +132,7 @@ class Logmytime extends Command {
         $parentTask->setUserTask($userTask);
 
         $taskBody = $parentTask->serialize();
-        $this->output->writeln($taskBody);
+//        $this->output->writeln($taskBody);
         $this->postTask($taskBody);
     }
 
@@ -159,16 +159,13 @@ class Logmytime extends Command {
     }
 
     protected function getSpaceList() {
-
         $path = sprintf(self::SPACES_LIST, self::FORMAT);
-        $this->output->writeln('request: ' . $path);
         $request = $this->client->get($path);
         $jsonString = $request->send()->getBody();
 
         $spaces = json_decode($jsonString);
 
         foreach ($spaces as $space) {
-            $this->output->writeln($space->id);
             $this->cache[self::SPACE_CACHE_KEY][$space->wiki_name] = $space->id;
         }
     }
@@ -179,7 +176,6 @@ class Logmytime extends Command {
         }
 
         $path = sprintf(self::SPACES_GET, $spaceName, self::FORMAT);
-        $this->output->writeln('request: ' . $path);
         $request = $this->client->get($path);
         $json = $request->send()->json();
         $this->cache[self::SPACE_CACHE_KEY][$spaceName] = $json['id'];
@@ -191,7 +187,6 @@ class Logmytime extends Command {
             return $this->cache[self::TICKET_CACHE_KEY][$spaceName . '-' . $ticketNum];
         }
         $path = sprintf(self::TICKETS_ENDPOINT, $spaceName, $ticketNum, self::FORMAT);
-        $this->output->writeln($path);
 
         $request = $this->client->get($path);
         $json = $request->send()->json();
@@ -208,8 +203,10 @@ class Logmytime extends Command {
             $formatter = $this->getHelper('formatter');
             $formattedBlock = $formatter->formatBlock(array("Error!", "Unable to post task"), 'error');
             $this->output->writeln($formattedBlock);
+            echo $response->getBody(true);
+        } else {
+            $this->output->writeln("Ticket logged successfully");
         }
-        echo $response->getBody(true);
     }
 
     protected function setAuthConfig($apiKey = null, $apiSecret = null) {
