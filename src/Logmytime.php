@@ -8,7 +8,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Question\Question;
 use Symfony\Component\Console\Question\ChoiceQuestion;
-use GuzzleHttp\Client;
+use Guzzle\Http\Client;
 use Dwyera\UserTask;
 use Dwyera\Configuration;
 
@@ -59,12 +59,12 @@ class Logmytime extends Command {
         $conf = Configuration::readConfig();
 
         $params = array(
-            'base_url' => self::ASSEMBLA_ENDPOINT,
-            'defaults' => array(
+            //'base_url' => self::ASSEMBLA_ENDPOINT,
+            'request.options' => array(
                 'headers' => array('X-Api-Key' => $conf->getKey(), 'X-Api-Secret' => $conf->getSecret())
             )
         );
-        $this->client = new Client($params);
+        $this->client = new Client(self::ASSEMBLA_ENDPOINT, $params);
 
         $this->getSpaceList();
 
@@ -109,32 +109,27 @@ class Logmytime extends Command {
 
         $path = sprintf(self::SPACES_LIST, self::FORMAT);
         $this->output->writeln('request: ' . $path);
-        $response = $this->client->get($path);
-        $jsonString = $response->getBody();
+        $request = $this->client->get($path);
+        $jsonString = $request->send()->getBody();
 
         $spaces = json_decode($jsonString);
-//        
-//        var_export($spaces);
-//return;
+
         foreach ($spaces as $space) {
             $this->output->writeln($space->id);
             $this->cache[self::SPACE_CACHE_KEY][$space->wiki_name] = $space->id;
         }
-
-        //return $json['id'];
-        //SPACES_LIST
     }
 
     protected function getSpaceId($spaceName) {
         if (array_key_exists($spaceName, $this->cache[self::SPACE_CACHE_KEY])) {
             return $this->cache[self::SPACE_CACHE_KEY][$spaceName];
         }
-        return;
+        
         $path = sprintf(self::SPACES_GET, $spaceName, self::FORMAT);
         $this->output->writeln('request: ' . $path);
-        $response = $this->client->get($path);
-        $json = $response->json();
-        print_r("Space ID: " . (String) $json['id']);
+        $request = $this->client->get($path);
+        $json = $request->send()->json();
+        $this->cache[self::SPACE_CACHE_KEY][$spaceName] = $json['id'];
         return $json['id'];
     }
 
@@ -145,10 +140,8 @@ class Logmytime extends Command {
         $path = sprintf(self::TICKETS_ENDPOINT, $spaceName, $ticketNum, self::FORMAT);
         $this->output->writeln($path);
 
-        $response = $this->client->get($path);
-
-        $json = $response->json();
-        print_r("Ticket ID: " . (String) $json['id']);
+        $request = $this->client->get($path);
+        $json = $request->send()->json();
         return $json['id'];
     }
 

@@ -14,8 +14,7 @@
         "symfony/config": "~2.6",
         "symfony/yaml": "~2.6",
         "symfony/filesystem": "~2.6",
-        "guzzlehttp/guzzle": "~5.0",
-        "danielstjules/stringy": "~1.9"
+        "guzzlehttp/guzzle": "~3.8"
     },
     "autoload": {
         "psr-4": {"Dwyera\\": "src/"}
