@@ -12,12 +12,16 @@ use Guzzle\Http\Client;
 use Dwyera\UserTask;
 use Dwyera\Configuration;
 
+/**
+ * Big ugly, messy class that needs to be broken out
+ */
 class Logmytime extends Command {
 
     const ASSEMBLA_ENDPOINT = "https://api.assembla.com";
     const SPACES_GET = "/v1/spaces/%s.%s";
     const SPACES_LIST = "/v1/spaces.%s";
     const TICKETS_ENDPOINT = "/v1/spaces/%s/tickets/%s.%s";
+    const TASKS_POST_ENDPOINT = "/v1/tasks";
     const FORMAT = "json";
     const SPACE_CACHE_KEY = 'spaces';
     const TICKET_CACHE_KEY = 'tickets';
@@ -26,31 +30,43 @@ class Logmytime extends Command {
     protected $cache = array(self::SPACE_CACHE_KEY => array(), self::TICKET_CACHE_KEY => array());
     protected $client;
     protected $output;
+    protected $input;
+    protected $helper;
 
     protected function configure() {
         $this
                 ->setName('log')
                 ->setDescription('Log time')
-                // ToDO make optional
                 ->addOption(
-                        'space', null, InputOption::VALUE_OPTIONAL, 'Space name?'
+                        'space', 's', InputOption::VALUE_OPTIONAL, 'Space name'
                 )
                 ->addOption(
-                        'ticket', null, InputOption::VALUE_OPTIONAL, 'Ticket Number?'
+                        'ticket', 't', InputOption::VALUE_OPTIONAL, 'Ticket Number'
                 )
                 ->addOption(
-                        'apiKey', null, InputOption::VALUE_OPTIONAL, 'Set the API key and save'
+                        'description', 'd', InputOption::VALUE_OPTIONAL, 'Ticket Description'
                 )
                 ->addOption(
-                        'apiSecret', null, InputOption::VALUE_OPTIONAL, 'Set the API secret and save'
+                        'hours', 'hr', InputOption::VALUE_OPTIONAL, 'Hours to log against ticket. E.g. 1.5'
+                )
+                ->addOption(
+                        'apiKey', 'key', InputOption::VALUE_OPTIONAL, 'Set the API key and save'
+                )
+                ->addOption(
+                        'apiSecret', 'sec', InputOption::VALUE_OPTIONAL, 'Set the API secret and save'
+                )
+                ->addOption(
+                        'interactive', 'i', InputOption::VALUE_NONE, 'Interactively prompt for time logging?'
                 )
         ;
     }
 
     protected function execute(InputInterface $input, OutputInterface $output) {
+        
         //TODO create library for assembla
         // command line tool to take space name, ticket number, description, & time - then log time. 
         $this->output = $output;
+        $this->input = $input;
 
         // Set the config from command line arguments 
         $this->setAuthConfig($input->getOption('apiKey'), $input->getOption('apiSecret'));
@@ -59,7 +75,6 @@ class Logmytime extends Command {
         $conf = Configuration::readConfig();
 
         $params = array(
-            //'base_url' => self::ASSEMBLA_ENDPOINT,
             'request.options' => array(
                 'headers' => array('X-Api-Key' => $conf->getKey(), 'X-Api-Secret' => $conf->getSecret())
             )
@@ -68,41 +83,79 @@ class Logmytime extends Command {
 
         $this->getSpaceList();
 
-        $helper = $this->getHelper('question');
+        $this->helper = $this->getHelper('question');
 
-        $spaceName = $input->getOption('space');
+//        //$client->setDefaultOption('verify', false);
+
+        if ($input->getOption('interactive')) {
+            while (true) {
+                $this->createTask();
+            }
+        } else {
+            $this->createTask();
+        }
+    }
+
+    protected function createTask() {
+               
+        $spaceName = $this->input->getOption('space');
         if (!$spaceName) {
             $question = new ChoiceQuestion(
                     'Please select the space: ', array_keys($this->cache[self::SPACE_CACHE_KEY])
             );
-            $spaceName = $helper->ask($input, $output, $question);
+            $spaceName = $this->helper->ask($this->input, $this->output, $question);
         }
 
-        $ticketNum = $input->getOption('ticket');
+        $ticketNum = $this->input->getOption('ticket');
         if (!$ticketNum) {
             $question = new Question('Please enter the number of the ticket: ');
-            $ticketNum = $helper->ask($input, $output, $question);
+            $ticketNum = $this->helper->ask($this->input, $this->output, $question);
         }
         $spaceId = $this->getSpaceId($spaceName);
 
+        $hours = $this->getTicketHours();
+        $description = $this->getTicketDescription();
         //TODO add option to verify before submitting
         $ticketId = $this->getTicketId($spaceName, $ticketNum);
 
         $userTask = new UserTask();
         $userTask->setSpaceId($spaceId);
         $userTask->setTicketId($ticketId);
-        $userTask->setDescription("test");
+        $userTask->setDescription($description);
         // TODO get from console
-        $userTask->setHours(0.1);
+        $userTask->setHours($hours);
+        //TODO allow this to be set to other days
         $userTask->setBeginAt(new \DateTime('now'));
         $userTask->setEndAt(new \DateTime('now'));
 
         $parentTask = new ParentTask();
         $parentTask->setUserTask($userTask);
 
-        $this->output->writeln($parentTask->serialize());
-        // TODO Fix this
-//        //$client->setDefaultOption('verify', false);
+        $taskBody = $parentTask->serialize();
+        $this->output->writeln($taskBody);
+        $this->postTask($taskBody);
+    }
+
+    /**
+     * Very ugly duplication. Clean up.
+     * @return type
+     */
+    protected function getTicketDescription() {
+        $description = $this->input->getOption('description');
+        if (!$description) {
+            $question = new Question('Please enter the description: ');
+            $description = $this->helper->ask($this->input, $this->output, $question);
+        }
+        return $description;
+    }
+
+    protected function getTicketHours() {
+        $hours = $this->input->getOption('hours');
+        if (!$hours) {
+            $question = new Question('Please enter the number of hours: ');
+            $hours = $this->helper->ask($this->input, $this->output, $question);
+        }
+        return $hours;
     }
 
     protected function getSpaceList() {
@@ -124,7 +177,7 @@ class Logmytime extends Command {
         if (array_key_exists($spaceName, $this->cache[self::SPACE_CACHE_KEY])) {
             return $this->cache[self::SPACE_CACHE_KEY][$spaceName];
         }
-        
+
         $path = sprintf(self::SPACES_GET, $spaceName, self::FORMAT);
         $this->output->writeln('request: ' . $path);
         $request = $this->client->get($path);
@@ -134,15 +187,29 @@ class Logmytime extends Command {
     }
 
     protected function getTicketId($spaceName, $ticketNum) {
-        if (array_key_exists($ticketNum, $this->cache[self::TICKET_CACHE_KEY])) {
-            return $this->cache[self::TICKET_CACHE_KEY][$ticketNum];
+        if (array_key_exists($spaceName . '-' . $ticketNum, $this->cache[self::TICKET_CACHE_KEY])) {
+            return $this->cache[self::TICKET_CACHE_KEY][$spaceName . '-' . $ticketNum];
         }
         $path = sprintf(self::TICKETS_ENDPOINT, $spaceName, $ticketNum, self::FORMAT);
         $this->output->writeln($path);
 
         $request = $this->client->get($path);
         $json = $request->send()->json();
+        $this->cache[self::TICKET_CACHE_KEY][$spaceName . '-' . $ticketNum] = $json['id'];
         return $json['id'];
+    }
+
+    protected function postTask($taskBody) {
+        $request = $this->client->post(self::TASKS_POST_ENDPOINT);
+        $request->setBody($taskBody, "application/json");
+        $response = $request->send();
+        //TODO handle errors
+        if ($response->getStatusCode() != 200) {
+            $formatter = $this->getHelper('formatter');
+            $formattedBlock = $formatter->formatBlock(array("Error!", "Unable to post task"), 'error');
+            $this->output->writeln($formattedBlock);
+        }
+        echo $response->getBody(true);
     }
 
     protected function setAuthConfig($apiKey = null, $apiSecret = null) {
